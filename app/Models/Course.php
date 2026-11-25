@@ -20,7 +20,7 @@ class Course extends Model
         'code',
         'name',
         'description',
-        'fee',
+        'fee', // <-- Perhatikan ini 'fee', bukan 'price'
         'quota',
         'start_date',
         'status',
@@ -56,5 +56,13 @@ class Course extends Model
         return $this->belongsToMany(Participant::class, 'enrollments')
             ->withPivot('status')
             ->withTimestamps();
+    }
+
+    /**
+     * Method untuk AJAX cek ketersediaan kursi (sesuai route web.php)
+     */
+    public function getAvailableQuotaAttribute()
+    {
+        return max(0, $this->quota - $this->enrollments()->count());
     }
 }

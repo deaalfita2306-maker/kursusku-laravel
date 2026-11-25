@@ -1,0 +1,57 @@
+# 🧪 TEST MATRIX - MILESTONE 13
+
+Nama: Dea Alfita
+NIM: 2524239
+Mata Kuliah: Bahasa Pemrograman III (PHP & MySQL)
+Pertemuan: 13
+**Tanggal Pengujian:** 25 November 2026
+
+| No | Skenario | Input | Expected | Actual | Status |
+|:---:|:---|:---|:---|:---|:---|
+| 1 | Halaman daftar kursus dapat diakses | `GET /courses` | Status 200, judul "Daftar Kursus" tampil, navbar ungu terlihat | Halaman terbuka dengan navbar ungu dan judul "Daftar Kursus" | **PASS** ✅ |
+| 2 | Pencarian dengan keyword yang tidak ada | `q=xyz123tidakada` | Empty state tampil, tanpa error | Muncul pesan *"Tidak ada data kursus."* | **PASS** ✅ |
+| 3 | Pencarian dengan kode kursus | `q=WEB-07` | Tepat 1 Course tampil (Bootstrap Praktis) | Hanya 1 baris "Bootstrap Praktis" yang tampil | **PASS** ✅ |
+| 4 | Pencarian dengan nama kursus | `q=Flutter` | Semua kursus dengan kata "Flutter" tampil (2 hasil) | Muncul "Flutter Dasar" dan "Flutter State Management" | **PASS** ✅ |
+| 5 | Filter status Open | `status=Open` | Hanya kursus berstatus Open tampil dengan badge hijau | 4 kursus Open tampil (WEB-07, WEB-10, WEB-09, WEB-06) | **PASS** ✅ |
+| 6 | Filter status Closed | `status=Closed` | Hanya kursus berstatus Closed tampil dengan badge merah | 4 kursus Closed tampil (DB-01, UI-01, MOB-01, MOB-02, NET-01) | **PASS** ✅ |
+| 7 | Filter status Draft | `status=Draft` | Hanya kursus berstatus Draft tampil dengan badge abu-abu | 1 kursus Draft tampil (SEC-01) | **PASS** ✅ |
+| 8 | Kombinasi Search + Filter | `q=Web&status=Open` | Hanya kursus "Web" dengan status Open | Muncul WEB-07, WEB-10, WEB-09, WEB-06 | **PASS** ✅ |
+| 9 | Pagination halaman 1 | `GET /courses` (default) | Muncul 10 data pertama, info "Showing 1 to 10 of 12 results" | 10 data tampil, pagination aktif | **PASS** ✅ |
+| 10 | Pagination halaman 2 | klik tombol **Next »** | Muncul data halaman 2, URL berubah jadi `?page=2` | Muncul 2 data sisanya (WEB-03, WEB-04) | **PASS** ✅ |
+| 11 | Filter + page 2 | `status=open` lalu klik **Next »** | `q`/`status` tetap terjaga di URL | URL berubah menjadi `?status=open&page=2`, data Page 2 tampil | **PASS** ✅ |
+| 12 | Tombol Reset filter | klik tombol **Reset** | Semua filter dan search kosong, semua data tampil | Form kembali kosong, 12 data tampil semua | **PASS** ✅ |
+| 13 | Tambah kursus valid | Form lengkap: Code=`TEST-01`, Name=`Testing`, Fee=`100000`, Quota=`20`, Status=`Open` | Redirect ke `/courses`, pesan sukses muncul, data masuk DB | Redirect berhasil, data "Testing" muncul di tabel | **PASS** ✅ |
+| 14 | Tambah kursus - kode duplikat | Code=`WEB-07` (sudah ada) | Muncul error "The code has already been taken" | Error validasi muncul, data tidak masuk DB | **PASS** ✅ |
+| 15 | Tambah kursus - field kosong | Name=(kosong), Fee=(kosong) | Muncul error "The name field is required", "The fee field is required" | Error validasi muncul di bawah field | **PASS** ✅ |
+| 16 | Tambah kursus - fee bukan angka | Fee=`abc` | Muncul error "The fee must be a number" | Error validasi muncul | **PASS** ✅ |
+| 17 | Tambah kursus - status tidak valid | Status=`Aktif` | Muncul error "The status must be Open, Closed, or Draft" | Error validasi muncul | **PASS** ✅ |
+| 18 | Edit kursus - ubah fee | Course DB-01, Fee diubah dari 500000 → 600000 | Redirect sukses, data terupdate di DB | Fee DB-01 sekarang Rp 600.000 | **PASS** ✅ |
+| 19 | Edit kursus - ubah status | Course WEB-07, Status diubah Open → Closed | Badge berubah dari hijau ke merah | Badge "Closed" merah tampil | **PASS** ✅ |
+| 20 | Hapus kursus dengan konfirmasi | klik Hapus → klik OK | Redirect sukses, data hilang dari tabel dan DB | Kursus TEST-01 hilang dari daftar | **PASS** ✅ |
+| 21 | Hapus kursus - batal | klik Hapus → klik Cancel | Tidak ada perubahan, data tetap ada | Data tetap di tabel | **PASS** ✅ |
+| 22 | Detail kursus | klik tombol **Detail** pada WEB-07 | Halaman detail kursus WEB-07 terbuka | Halaman show tampil dengan info lengkap | **PASS** ✅ |
+| 23 | Endpoint AJAX availability | `GET /courses/1/availability` | JSON response: `{available, quota, enrolled, remaining}` | JSON `{"available":true,"quota":25,"enrolled":0,"remaining":25}` | **PASS** ✅ |
+| 24 | Endpoint AJAX - kuota habis | Course dengan quota=1, sudah 1 enrollment | JSON: `{"available":false,"remaining":0}` | JSON mengembalikan `available: false` | **PASS** ✅ |
+| 25 | Tampilan tema ungu | `GET /courses` | Navbar ungu, tombol ungu, pagination ungu | Semua elemen utama berwarna ungu (#7B2D8E) | **PASS** ✅ |
+| 26 | Badge status warna-warni | `GET /courses` | Open=hijau, Closed=merah, Draft=abu-abu | Badge tampil dengan warna sesuai status | **PASS** ✅ |
+| 27 | Format harga Rupiah | `GET /courses` | Fee diformat "Rp 500.000" (titik sebagai pemisah ribuan) | Semua fee tampil dengan format Rp yang benar | **PASS** ✅ |
+| 28 | Format tanggal | `GET /courses` | start_date diformat "01 Oct 2026" | Tanggal tampil dalam format "dd Mmm yyyy" | **PASS** ✅ |
+| 29 | Relasi Course-Enrollment | Course DB-01 punya 2 enrollment | `enrollments()->count()` = 2, `available_quota` = 23 | Method relasi mengembalikan nilai yang benar | **PASS** ✅ |
+| 30 | Database seeder berjalan | `php artisan db:seed --class=CourseSeeder` | 10 data kursus masuk ke database | 10 data (DB-01 s/d WEB-06) berhasil di-seed | **PASS** ✅ |
+
+---
+
+## 📊 Ringkasan Hasil Pengujian
+
+- **Total Skenario:** 30
+- **Pass:** 30 ✅
+- **Fail:** 0 ❌
+- **Persentase Keberhasilan:** 100%
+
+---
+
+## 🧪 Automated Testing (PHPUnit)
+
+Perintah yang dijalankan:
+```bash
+php artisan test --filter=CourseFeatureTest

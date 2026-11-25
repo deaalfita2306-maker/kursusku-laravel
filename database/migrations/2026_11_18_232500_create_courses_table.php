@@ -1,34 +1,15 @@
-<?php
-
-use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
-
-return new class extends Migration
+// database/migrations/xxxx_create_courses_table.php
+public function up()
 {
-    /**
-     * Run the migrations.
-     */
-    public function up(): void
-    {
-        Schema::create('courses', function (Blueprint $table) {
-            $table->id();
-            $table->string('code', 20)->unique();
-            $table->string('name', 120);
-            $table->text('description')->nullable();
-            $table->unsignedInteger('fee')->default(0);
-            $table->unsignedSmallInteger('quota')->default(20);
-            $table->date('start_date');
-            $table->enum('status', ['draft', 'open', 'closed'])->default('draft');
-            $table->timestamps();
-        });
-    }
-
-    /**
-     * Reverse the migrations.
-     */
-    public function down(): void
-    {
-        Schema::dropIfExists('courses');
-    }
-};
+    Schema::create('courses', function (Blueprint $table) {
+        $table->id();
+        $table->string('code', 10)->unique();        // DB-01, WEB-07, dll
+        $table->string('name');                       // Nama Kursus
+        $table->text('description')->nullable();      // Deskripsi singkat
+        $table->decimal('price', 10, 2);              // Biaya
+        $table->integer('quota');                     // Kuota peserta
+        $table->date('start_date');                   // Tanggal Mulai
+        $table->enum('status', ['Open', 'Closed', 'Draft'])->default('Draft');
+        $table->timestamps();
+    });
+}

@@ -1,64 +1,149 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KursusKu - @yield('title', 'Daftar Kursus')</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-purple: #7B2D8E;
+            --dark-purple: #5A1E6B;
+            --light-purple: #9B4DCA;
+        }
 
-    <title>@yield('title', ($siteName ?? 'KursusKu') . ' — Platform Pembelajaran Kursus Digital')</title>
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+        }
 
-    <!-- Vite Assets (Bootstrap CSS & JS, jQuery, App Logic) -->
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
+        /* Navbar Ungu */
+        .navbar-purple {
+            background-color: var(--primary-purple) !important;
+            padding: 15px 0;
+        }
 
-    <!-- KursusKu Custom Stylesheet (Purple & White Theme) -->
-    <link rel="stylesheet" href="{{ asset('css/style.css') }}">
+        .navbar-purple .navbar-brand {
+            color: white !important;
+            font-weight: bold;
+            font-size: 1.5rem;
+        }
+
+        .navbar-purple .nav-link {
+            color: rgba(255,255,255,0.9) !important;
+            font-weight: 500;
+        }
+
+        .navbar-purple .nav-link:hover {
+            color: white !important;
+        }
+
+        /* Tombol Ungu */
+        .btn-purple {
+            background-color: var(--primary-purple);
+            color: white;
+            border: none;
+        }
+
+        .btn-purple:hover {
+            background-color: var(--dark-purple);
+            color: white;
+        }
+
+        /* Table Header Gelap */
+        .table-dark-header thead {
+            background-color: #2c2c2c;
+            color: white;
+        }
+
+        .table-dark-header thead th {
+            border: none;
+            padding: 12px;
+            font-weight: 600;
+        }
+
+        /* Badge Status */
+        .badge-open {
+            background-color: #28a745;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+        }
+
+        .badge-closed {
+            background-color: #dc3545;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+        }
+
+        .badge-draft {
+            background-color: #6c757d;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+        }
+
+        /* Tombol Aksi */
+        .btn-detail {
+            background-color: #17a2b8;
+            color: white;
+            border: none;
+            padding: 4px 12px;
+            font-size: 0.85rem;
+        }
+
+        .btn-edit {
+            background-color: #ffc107;
+            color: #000;
+            border: none;
+            padding: 4px 12px;
+            font-size: 0.85rem;
+        }
+
+        .btn-hapus {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 4px 12px;
+            font-size: 0.85rem;
+        }
+
+        /* Pagination */
+        .pagination .page-link {
+            color: var(--primary-purple);
+        }
+
+        .pagination .page-item.active .page-link {
+            background-color: var(--primary-purple);
+            border-color: var(--primary-purple);
+        }
+    </style>
+    @yield('styles')
 </head>
 <body>
-
-    <!-- Navbar Reusable -->
-    @include('partials.navbar')
-
-    <!-- Flash Message Success -->
-    @if (session('success'))
-        <div class="container mt-3">
-            <div class="alert alert-success alert-dismissible fade show d-flex align-items-center shadow-sm" role="alert">
-                <span class="me-2 fw-bold">&#10003;</span>
-                <div>{{ session('success') }}</div>
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        </div>
-    @endif
-
-    <!-- Area Konten Utama -->
-    <main>
-        @yield('content')
-    </main>
-
-    <!-- Footer -->
-    <footer class="site-footer">
+    <!-- Navbar Ungu -->
+    <nav class="navbar navbar-purple">
         <div class="container">
-            <div class="footer-grid">
-                <div>
-                    <div class="footer-brand">{{ $siteName ?? 'KursusKu' }}</div>
-                    <p class="footer-tagline">Belajar, daftar, dan kelola kursus dalam satu tempat.</p>
-                </div>
-                <div>
-                    <ul class="footer-links">
-                        <li><a href="{{ route('home') }}" class="footer-link">Beranda</a></li>
-                        <li><a href="{{ route('courses.index') }}" class="footer-link">Data Kursus</a></li>
-                        <li><a href="{{ route('enrollments.index') }}" class="footer-link">Data Enrollment</a></li>
-                        <li><a href="{{ route('enrollments.create') }}" class="footer-link">Pendaftaran</a></li>
-                        <li><a href="{{ route('home') }}#katalog" class="footer-link">Katalog</a></li>
-                        <li><a href="{{ route('home') }}#kontak" class="footer-link">Kontak</a></li>
-                    </ul>
-                </div>
-            </div>
-            <div class="footer-bottom">
-                <p>&copy; {{ date('Y') }} {{ $siteName ?? 'KursusKu' }}. Seluruh hak cipta dilindungi undang-undang.</p>
-                <p>Implementasi Praktikum Pertemuan 12 &mdash; Relational Database KursusKu (Participants, Courses, Enrollments)</p>
+            <a class="navbar-brand" href="/">KursusKu</a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="/">Beranda</a>
+                <a class="nav-link" href="/pendaftaran">Pendaftaran</a>
             </div>
         </div>
-    </footer>
+    </nav>
 
+    <!-- Content -->
+    <div class="container py-4">
+        @yield('content')
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    @yield('scripts')
 </body>
 </html>

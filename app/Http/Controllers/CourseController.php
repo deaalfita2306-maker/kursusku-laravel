@@ -2,80 +2,110 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request; // ← TAMBAHKAN BARIS INI
-use App\Http\Requests\StoreCourseRequest;
-use App\Http\Requests\UpdateCourseRequest;
 use App\Models\Course;
+use Illuminate\Http\Request;
 
 class CourseController extends Controller
 {
-    /**
-     * Menampilkan daftar course dengan Search, Filter, dan Pagination
-     */
+    // Menampilkan daftar kursus (Halaman Index)
     public function index(Request $request)
     {
-        // 1. Ambil parameter dari URL
-        $search = trim((string) $request->query('q'));
-        $status = trim((string) $request->query('status'));
-        
-        // 2. Whitelist status yang valid (sesuai panduan + 'active' untuk data lama Anda)
-        $allowedStatuses = ['open', 'closed', 'draft', 'active'];
+        $query = Course::query();
 
-        // 3. Query Builder
-        $courses = Course::query()
-            ->when($search !== '', function ($query) use ($search) {
-                $query->where(function ($q) use ($search) {
-                    $q->where('code', 'like', "%{$search}%")
-                      ->orWhere('name', 'like', "%{$search}%");
-                });
-            })
-            ->when(in_array($status, $allowedStatuses, true), function ($query) use ($status) {
-                $query->where('status', $status);
-            })
-            ->orderBy('name')
-            ->paginate(10)
-            ->withQueryString(); // PENTING: agar q dan status tidak hilang saat pindah halaman
+        // Fitur Pencarian (Search)
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where('code', 'like', "%{$search}%")
+                  ->orWhere('name', 'like', "%{$search}%");
+        }
 
-        // 4. Kirim data ke view
-        return view('courses.index', compact('courses', 'search', 'status'));
+        // Fitur Filter Status
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        // Ambil data dan paginate (10 per halaman)
+        $courses = $query->orderBy('id', 'asc')->paginate(10);
+
+        return view('courses.index', compact('courses'));
     }
 
+    // Menampilkan form tambah kursus
     public function create()
     {
         return view('courses.create');
     }
 
-    public function store(StoreCourseRequest $request)
+    // Menyimpan data kursus baru ke database
+    public function store(Request $request)
     {
-        Course::create($request->validated());
+        $validated = $request->validate([
+            'code'        => 'required|string|max:10|unique:courses,code',
+            'name'        => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'fee'         => 'required|numeric|min:0', // <-- DIPERBAIKI: price jadi fee
+            'quota'       => 'required|integer|min:1',
+            'start_date'  => 'required|date',
+            'status'      => 'required|in:Open,Closed,Draft',
+        ]);
 
-        return to_route('courses.index')
-            ->with('success', 'Kursus berhasil ditambahkan.');
+        Course::create($validated);
+
+        return redirect()->route('courses.index')
+            ->with('success', 'Kursus berhasil ditambahkan!');
     }
 
+    // Menampilkan detail satu kursus
     public function show(Course $course)
     {
         return view('courses.show', compact('course'));
     }
 
+    // Menampilkan form edit kursus
     public function edit(Course $course)
     {
         return view('courses.edit', compact('course'));
     }
 
-    public function update(UpdateCourseRequest $request, Course $course)
+    // Mengupdate data kursus
+    public function update(Request $request, Course $course)
     {
-        $course->update($request->validated());
+        $validated = $request->validate([
+            'code'        => 'required|string|max:10|unique:courses,code,' . $course->id,
+            'name'        => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'fee'         => 'required|numeric|min:0', // <-- DIPERBAIKI: price jadi fee
+            'quota'       => 'required|integer|min:1',
+            'start_date'  => 'required|date',
+            'status'      => 'required|in:Open,Closed,Draft',
+        ]);
 
-        return to_route('courses.show', $course)
-            ->with('success', 'Kursus berhasil diperbarui.');
+        $course->update($validated);
+
+        return redirect()->route('courses.index')
+            ->with('success', 'Kursus berhasil diperbarui!');
     }
 
+    // Menghapus data kursus
     public function destroy(Course $course)
     {
         $course->delete();
 
-        return to_route('courses.index')
-            ->with('success', 'Kursus berhasil dihapus.');
+        return redirect()->route('courses.index')
+            ->with('success', 'Kursus berhasil dihapus!');
+    }
+
+    // Method untuk AJAX cek ketersediaan kursi (DIPERLUKAN oleh route web.php)
+    public function availability(Course $course)
+    {
+        $enrolledCount = $course->enrollments()->count();
+        $remaining = max(0, $course->quota - $enrolledCount);
+
+        return response()->json([
+            'available' => $remaining > 0,
+            'quota' => $course->quota,
+            'enrolled' => $enrolledCount,
+            'remaining' => $remaining
+        ]);
     }
 }
