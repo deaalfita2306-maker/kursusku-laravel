@@ -13,7 +13,7 @@ return new class extends Migration
             $table->string('code', 10)->unique();
             $table->string('name');
             $table->text('description')->nullable();
-            $table->decimal('price', 10, 2);
+            $table->integer('fee');
             $table->integer('quota');
             $table->date('start_date');
             $table->enum('status', ['Open', 'Closed', 'Draft'])->default('Draft');

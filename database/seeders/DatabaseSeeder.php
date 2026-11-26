@@ -15,11 +15,13 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
-
+        // 1. Membuat 1 User default (opsional, bawaan Laravel)
         User::factory()->create([
             'name' => 'Test User',
             'email' => 'test@example.com',
         ]);
+
+        // 2. TAMBAHKAN BARIS INI: Memanggil CourseSeeder agar 10 data kursus masuk
+        $this->call(CourseSeeder::class);
     }
 }
