@@ -3,50 +3,65 @@
 namespace App\Http\Controllers;
 
 use App\Models\Course;
+use App\Models\Enrollment;
+use App\Models\Participant;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 
 class CourseController extends Controller
 {
-    // Menampilkan daftar kursus (Halaman Index)
     public function index(Request $request)
     {
+        $search = trim((string) ($request->query('q') ?? $request->query('search') ?? ''));
+        $status = strtolower(trim((string) $request->query('status', '')));
+
         $query = Course::query();
 
-        // Fitur Pencarian (Search)
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where('code', 'like', "%{$search}%")
-                  ->orWhere('name', 'like', "%{$search}%");
+        if (!Auth::check() || !Auth::user()->isAdmin()) {
+            $query->where('status', '!=', 'draft');
         }
 
-        // Fitur Filter Status
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->where('code', 'like', "%{$search}%")
+                    ->orWhere('name', 'like', "%{$search}%");
+            });
         }
 
-        // Ambil data dan paginate (10 per halaman)
-        $courses = $query->orderBy('id', 'asc')->paginate(10);
+        if (in_array($status, ['open', 'closed', 'draft'], true)) {
+            $query->where('status', $status);
+        }
 
-        return view('courses.index', compact('courses'));
+        $courses = $query->orderBy('id', 'asc')->paginate(10)->withQueryString();
+
+        return view('courses.index', compact('courses', 'search', 'status'));
     }
 
-    // Menampilkan form tambah kursus
     public function create()
     {
+        Gate::authorize('create', Course::class);
+
         return view('courses.create');
     }
 
-    // Menyimpan data kursus baru ke database
     public function store(Request $request)
     {
+        Gate::authorize('create', Course::class);
+
+        $request->merge([
+            'status' => strtolower((string) $request->input('status', 'draft')),
+        ]);
+
         $validated = $request->validate([
-            'code'        => 'required|string|max:10|unique:courses,code',
-            'name'        => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'fee'         => 'required|numeric|min:0', // <-- DIPERBAIKI: price jadi fee
-            'quota'       => 'required|integer|min:1',
-            'start_date'  => 'required|date',
-            'status'      => 'required|in:Open,Closed,Draft',
+            'code' => ['required', 'string', 'max:20', 'unique:courses,code'],
+            'name' => ['required', 'string', 'min:3', 'max:120'],
+            'description' => ['nullable', 'string', 'max:2000'],
+            'fee' => ['required', 'integer', 'min:0'],
+            'quota' => ['required', 'integer', 'between:1,500'],
+            'start_date' => ['required', 'date'],
+            'status' => ['required', 'in:draft,open,closed'],
         ]);
 
         Course::create($validated);
@@ -55,29 +70,51 @@ class CourseController extends Controller
             ->with('success', 'Kursus berhasil ditambahkan!');
     }
 
-    // Menampilkan detail satu kursus
     public function show(Course $course)
     {
-        return view('courses.show', compact('course'));
+        Gate::authorize('view', $course);
+
+        $isEnrolled = false;
+        if (Auth::check()) {
+            $participant = Participant::where('email', Auth::user()->email)->first();
+            if ($participant) {
+                $isEnrolled = Enrollment::where('participant_id', $participant->id)
+                    ->where('course_id', $course->id)
+                    ->exists();
+            }
+        }
+
+        return view('courses.show', compact('course', 'isEnrolled'));
     }
 
-    // Menampilkan form edit kursus
     public function edit(Course $course)
     {
+        Gate::authorize('update', $course);
+
         return view('courses.edit', compact('course'));
     }
 
-    // Mengupdate data kursus
     public function update(Request $request, Course $course)
     {
+        Gate::authorize('update', $course);
+
+        $request->merge([
+            'status' => strtolower((string) $request->input('status', $course->status)),
+        ]);
+
         $validated = $request->validate([
-            'code'        => 'required|string|max:10|unique:courses,code,' . $course->id,
-            'name'        => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'fee'         => 'required|numeric|min:0', // <-- DIPERBAIKI: price jadi fee
-            'quota'       => 'required|integer|min:1',
-            'start_date'  => 'required|date',
-            'status'      => 'required|in:Open,Closed,Draft',
+            'code' => [
+                'required',
+                'string',
+                'max:20',
+                Rule::unique('courses', 'code')->ignore($course->id),
+            ],
+            'name' => ['required', 'string', 'min:3', 'max:120'],
+            'description' => ['nullable', 'string', 'max:2000'],
+            'fee' => ['required', 'integer', 'min:0'],
+            'quota' => ['required', 'integer', 'between:1,500'],
+            'start_date' => ['required', 'date'],
+            'status' => ['required', 'in:draft,open,closed'],
         ]);
 
         $course->update($validated);
@@ -86,26 +123,30 @@ class CourseController extends Controller
             ->with('success', 'Kursus berhasil diperbarui!');
     }
 
-    // Menghapus data kursus
     public function destroy(Course $course)
     {
+        Gate::authorize('delete', $course);
+
         $course->delete();
 
         return redirect()->route('courses.index')
             ->with('success', 'Kursus berhasil dihapus!');
     }
 
-    // Method untuk AJAX cek ketersediaan kursi (DIPERLUKAN oleh route web.php)
     public function availability(Course $course)
     {
         $enrolledCount = $course->enrollments()->count();
         $remaining = max(0, $course->quota - $enrolledCount);
 
         return response()->json([
-            'available' => $remaining > 0,
+            'id' => $course->id,
+            'code' => $course->code,
+            'name' => $course->name,
+            'status' => $course->status,
+            'available' => $remaining > 0 && $course->status === 'open',
             'quota' => $course->quota,
             'enrolled' => $enrolledCount,
-            'remaining' => $remaining
+            'remaining' => $remaining,
         ]);
     }
 }

@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
@@ -15,13 +16,23 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // 1. Membuat 1 User default (opsional, bawaan Laravel)
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
+        $this->call(AdminSeeder::class);
 
-        // 2. TAMBAHKAN BARIS INI: Memanggil CourseSeeder agar 10 data kursus masuk
-        $this->call(CourseSeeder::class);
+        User::firstOrCreate(
+            ['email' => 'user@kursusku.test'],
+            [
+                'name' => 'Peserta KursusKu',
+                'username' => 'peserta',
+                'password' => Hash::make('KursusKu#User2026!'),
+                'role' => 'user',
+                'is_active' => true,
+                'email_verified_at' => now(),
+            ]
+        );
+
+        $this->call([
+            CourseSeeder::class,
+            ParticipantSeeder::class,
+        ]);
     }
 }

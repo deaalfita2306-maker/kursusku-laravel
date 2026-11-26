@@ -17,7 +17,15 @@
                 </p>
                 <div class="hero-cta">
                     <a href="#katalog" class="btn btn-primary">Lihat Katalog Kursus</a>
-                    <a href="{{ route('enrollments.create') }}" class="btn btn-outline">Pendaftaran Online</a>
+                    @auth
+                        @if (auth()->user()->isAdmin())
+                            <a href="{{ route('enrollments.create') }}" class="btn btn-outline">Pendaftaran Online</a>
+                        @else
+                            <a href="{{ route('courses.index') }}" class="btn btn-outline">Daftar Kursus</a>
+                        @endif
+                    @else
+                        <a href="{{ route('register') }}" class="btn btn-outline">Daftar Akun</a>
+                    @endauth
                 </div>
                 <div class="hero-stats">
                     <div class="stat-item">
@@ -133,7 +141,7 @@
                         </div>
                         <div>
                             @if ($course['status'] === 'Tersedia')
-                                <a href="{{ route('enrollments.create') }}" class="btn btn-primary btn-sm">Daftar Kelas</a>
+                                <a href="{{ route('courses.index') }}" class="btn btn-primary btn-sm">Daftar Kelas</a>
                             @else
                                 <span class="btn btn-disabled btn-sm">Penuh</span>
                             @endif

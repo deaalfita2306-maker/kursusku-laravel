@@ -1,95 +1,81 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-use Illuminate\Http\Request;
-use App\Http\Controllers\HomeController;
+use App\Http\Controllers\Admin\UserController as AdminUserController;
+use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CourseController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EnrollmentController;
-use App\Http\Controllers\DashboardController; // <-- TAMBAHKAN INI
+use App\Http\Controllers\HomeController;
+use App\Http\Controllers\ProfileController;
+use Illuminate\Support\Facades\Route;
 
-// ==================== LOGIN ====================
-Route::get('/login', function () {
-    if (session('is_admin_logged_in')) {
-        return redirect('/dashboard'); // <-- UBAH KE DASHBOARD
-    }
-    return view('auth.login');
-})->name('login');
-
-Route::post('/login', function (Request $request) {
-    $request->validate([
-        'username' => 'required',
-        'password' => 'required',
-    ]);
-
-    if ($request->username === 'admin' && $request->password === 'admin123') {
-        session(['is_admin_logged_in' => true, 'admin_name' => 'Administrator']);
-        return redirect('/dashboard')->with('success', 'Login berhasil! Selamat datang, Admin.'); // <-- UBAH KE DASHBOARD
-    }
-
-    return back()->withErrors(['login' => 'Username atau password salah!'])->withInput();
-})->name('login.process');
-
-Route::post('/logout', function () {
-    session()->forget(['is_admin_logged_in', 'admin_name']);
-    return redirect('/login');
-})->name('logout');
-
-// ==================== PUBLIK ====================
+// ==================== HALAMAN PUBLIK (GUEST, USER, ADMIN) ====================
 Route::get('/', [HomeController::class, 'index'])->name('home');
-Route::get('/pendaftaran', [EnrollmentController::class, 'pendaftaran'])->name('pendaftaran');
-Route::post('/pendaftaran/preview', [EnrollmentController::class, 'preview'])->name('enrollments.preview');
+Route::get('/informasi', [HomeController::class, 'info'])->name('info');
 
-// ==================== DILINDUNGI (CEK MANUAL) ====================
+Route::get('/courses', [CourseController::class, 'index'])->name('courses.index');
+Route::get('/courses/{course}/availability', [CourseController::class, 'availability'])
+    ->whereNumber('course')
+    ->name('courses.availability');
 
-// 1. ROUTE DASHBOARD (BARU)
-Route::get('/dashboard', function () {
-    if (!session('is_admin_logged_in')) return redirect('/login');
-    return app(DashboardController::class)->index();
-})->name('dashboard');
+// ==================== AUTENTIKASI (GUEST ONLY) ====================
+Route::middleware('guest')->group(function () {
+    Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
+    Route::post('/login', [AuthController::class, 'login'])->name('login.process');
 
-// 2. ROUTE COURSES
-Route::get('/courses', function (Request $request) {
-    if (!session('is_admin_logged_in')) return redirect('/login');
-    return app(CourseController::class)->index($request);
-})->name('courses.index');
+    Route::get('/register', [AuthController::class, 'showRegister'])->name('register');
+    Route::post('/register', [AuthController::class, 'register'])->name('register.process');
 
-Route::get('/courses/create', function () {
-    if (!session('is_admin_logged_in')) return redirect('/login');
-    return app(CourseController::class)->create();
-})->name('courses.create');
+    Route::get('/forgot-password', [AuthController::class, 'showForgotPassword'])->name('password.request');
+    Route::post('/forgot-password', [AuthController::class, 'sendResetLink'])->name('password.email');
 
-Route::post('/courses', function (Request $request) {
-    if (!session('is_admin_logged_in')) return redirect('/login');
-    return app(CourseController::class)->store($request);
-})->name('courses.store');
+    Route::get('/reset-password/{token}', [AuthController::class, 'showResetPassword'])->name('password.reset');
+    Route::post('/reset-password', [AuthController::class, 'resetPassword'])->name('password.update');
+});
 
-Route::get('/courses/{course}', function ($course) {
-    if (!session('is_admin_logged_in')) return redirect('/login');
-    return app(CourseController::class)->show($course);
-})->name('courses.show');
+// ==================== ROUTE TERAUTENTIKASI (USER & ADMIN) ====================
+Route::middleware(['auth', 'role:user,admin'])->group(function () {
+    Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
-Route::get('/courses/{course}/edit', function ($course) {
-    if (!session('is_admin_logged_in')) return redirect('/login');
-    return app(CourseController::class)->edit($course);
-})->name('courses.edit');
+    // Dashboard User (otomatis mengarahkan admin ke admin.dashboard)
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
-Route::put('/courses/{course}', function (Request $request, $course) {
-    if (!session('is_admin_logged_in')) return redirect('/login');
-    return app(CourseController::class)->update($request, $course);
-})->name('courses.update');
+    // Profil Pengguna
+    Route::get('/profile', [ProfileController::class, 'show'])->name('profile.show');
+    Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::put('/profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password');
 
-Route::delete('/courses/{course}', function ($course) {
-    if (!session('is_admin_logged_in')) return redirect('/login');
-    return app(CourseController::class)->destroy($course);
-})->name('courses.destroy');
+    // Enrollment Pengguna
+    Route::get('/enrollments', [EnrollmentController::class, 'index'])->name('enrollments.index');
+    Route::post('/courses/{course}/enroll', [EnrollmentController::class, 'enrollSelf'])
+        ->whereNumber('course')
+        ->name('courses.enroll');
+    Route::get('/pendaftaran', [EnrollmentController::class, 'pendaftaran'])->name('pendaftaran');
+    Route::post('/pendaftaran/preview', [EnrollmentController::class, 'preview'])->name('enrollments.preview');
+});
 
-Route::get('/courses/{course}/availability', function ($course) {
-    if (!session('is_admin_logged_in')) return redirect('/login');
-    return app(CourseController::class)->availability($course);
-})->name('courses.availability');
+// ==================== ROUTE KHUSUS ADMIN ====================
+Route::middleware(['auth', 'role:admin'])->group(function () {
+    Route::get('/admin/dashboard', [DashboardController::class, 'admin'])->name('admin.dashboard');
 
-// 3. ROUTE ENROLLMENTS
-Route::get('/enrollments', function () {
-    if (!session('is_admin_logged_in')) return redirect('/login');
-    return app(EnrollmentController::class)->index();
-})->name('enrollments.index');
+    // CRUD Kursus (Admin Only)
+    Route::get('/courses/create', [CourseController::class, 'create'])->name('courses.create');
+    Route::post('/courses', [CourseController::class, 'store'])->name('courses.store');
+    Route::get('/courses/{course}/edit', [CourseController::class, 'edit'])->whereNumber('course')->name('courses.edit');
+    Route::put('/courses/{course}', [CourseController::class, 'update'])->whereNumber('course')->name('courses.update');
+    Route::delete('/courses/{course}', [CourseController::class, 'destroy'])->whereNumber('course')->name('courses.destroy');
+
+    // Manajemen Enrollment oleh Admin
+    Route::get('/enrollments/create', [EnrollmentController::class, 'create'])->name('enrollments.create');
+    Route::post('/enrollments', [EnrollmentController::class, 'store'])->name('enrollments.store');
+
+    // Manajemen Pengguna (Admin Only)
+    Route::resource('admin/users', AdminUserController::class)
+        ->names('admin.users')
+        ->except(['show']);
+});
+
+// Detail Kursus Publik (diletakkan setelah /courses/create agar tidak bentrok)
+Route::get('/courses/{course}', [CourseController::class, 'show'])
+    ->whereNumber('course')
+    ->name('courses.show');

@@ -2,168 +2,183 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
+use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
-    // 1. Tampilkan Halaman Login
     public function showLogin()
     {
         return view('auth.login');
     }
 
-    // 2. Proses Login
     public function login(Request $request)
     {
-        // Validasi input
         $request->validate([
-            'username' => 'required|string',
-            'password' => 'required|string',
+            'login' => ['required', 'string'],
+            'password' => ['required', 'string'],
         ], [
-            'username.required' => 'Username wajib diisi.',
+            'login.required' => 'Email atau username wajib diisi.',
             'password.required' => 'Password wajib diisi.',
         ]);
 
-        // Cari user di database berdasarkan username dan status Aktif
-        $user = DB::table('users')
-            ->where('username', $request->username)
-            ->where('status', 'Aktif')
-            ->first();
+        $loginInput = trim($request->input('login'));
+        $field = filter_var($loginInput, FILTER_VALIDATE_EMAIL) ? 'email' : 'username';
+        $remember = $request->boolean('remember');
 
-        // Cek apakah user ditemukan dan password cocok
-        if ($user && Hash::check($request->password, $user->password)) {
-            
-            // Simpan data user ke Session
-            session([
-                'user_id' => $user->id,
-                'username' => $user->username,
-                'nama_lengkap' => $user->nama_lengkap,
-                'email' => $user->email,
-                'role' => $user->role,
-            ]);
+        if (Auth::attempt([$field => $loginInput, 'password' => $request->input('password')], $remember)) {
+            $user = Auth::user();
 
-            // Update waktu login terakhir
-            DB::table('users')->where('id', $user->id)->update([
-                'last_login' => now(),
-            ]);
+            if (!$user->is_active) {
+                Auth::logout();
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
 
-            // Redirect ke halaman profil
-            return redirect()->route('profile')->with('success', 'Login berhasil! Selamat datang, ' . $user->nama_lengkap);
+                return back()
+                    ->withErrors(['login' => 'Akun Anda sedang dinonaktifkan. Hubungi administrator.'])
+                    ->withInput($request->only('login', 'remember'));
+            }
+
+            $request->session()->regenerate();
+            $user->forceFill(['last_login_at' => now()])->save();
+
+            $defaultRedirect = $user->isAdmin()
+                ? route('admin.dashboard')
+                : route('dashboard');
+
+            return redirect()->intended($defaultRedirect)
+                ->with('success', 'Login berhasil! Selamat datang, ' . $user->name . '.');
         }
 
-        // Jika gagal, kembali ke login dengan pesan error
-        return back()->with('error', 'Username atau password salah, atau akun tidak aktif!')->withInput();
+        return back()
+            ->withErrors(['login' => 'Email/username atau password salah.'])
+            ->withInput($request->only('login', 'remember'));
     }
 
-    // 3. Tampilkan Halaman Profil
-    public function showProfile()
+    public function showRegister()
     {
-        // Cek apakah user sudah login
-        if (!session('user_id')) {
-            return redirect()->route('login')->with('error', 'Silakan login terlebih dahulu.');
-        }
-
-        // Ambil data user terbaru dari database
-        $user = DB::table('users')->where('id', session('user_id'))->first();
-        
-        return view('auth.profile', compact('user'));
+        return view('auth.register');
     }
 
-    // 4. Update Profil
-    public function updateProfile(Request $request)
+    public function register(Request $request)
     {
-        if (!session('user_id')) {
-            return redirect()->route('login');
-        }
-
-        $request->validate([
-            'nama_lengkap' => 'required|string|max:100',
-            'email' => 'required|email|max:100',
-            'nomor_hp' => 'nullable|string|max:20',
-            'jabatan' => 'nullable|string|max:100',
-        ]);
-
-        // Update database
-        DB::table('users')->where('id', session('user_id'))->update([
-            'nama_lengkap' => $request->nama_lengkap,
-            'email' => $request->email,
-            'nomor_hp' => $request->nomor_hp,
-            'jabatan' => $request->jabatan,
-        ]);
-
-        // Update session agar nama yang tampil di navbar ikut berubah
-        session([
-            'nama_lengkap' => $request->nama_lengkap,
-            'email' => $request->email,
-        ]);
-
-        return back()->with('success', 'Profil berhasil diperbarui!');
-    }
-
-    // 5. Ganti Password
-    public function changePassword(Request $request)
-    {
-        if (!session('user_id')) {
-            return redirect()->route('login');
-        }
-
-        $request->validate([
-            'current_password' => 'required',
-            'new_password' => 'required|min:8|confirmed', // 'confirmed' otomatis cek field 'new_password_confirmation'
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'min:3', 'max:100'],
+            'username' => ['required', 'string', 'min:3', 'max:50', 'alpha_dash', 'unique:users,username'],
+            'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
+            'phone' => ['nullable', 'string', 'max:20'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
         ], [
-            'new_password.confirmed' => 'Konfirmasi password baru tidak cocok.',
-            'new_password.min' => 'Password baru minimal 8 karakter.',
+            'name.required' => 'Nama lengkap wajib diisi.',
+            'username.required' => 'Username wajib diisi.',
+            'username.alpha_dash' => 'Username hanya boleh berisi huruf, angka, tanda hubung, dan underscore.',
+            'username.unique' => 'Username sudah digunakan.',
+            'email.required' => 'Email wajib diisi.',
+            'email.email' => 'Format email tidak valid.',
+            'email.unique' => 'Email sudah terdaftar.',
+            'password.required' => 'Password wajib diisi.',
+            'password.min' => 'Password minimal 8 karakter.',
+            'password.confirmed' => 'Konfirmasi password tidak cocok.',
         ]);
 
-        $user = DB::table('users')->where('id', session('user_id'))->first();
-
-        // Cek password lama
-        if (!Hash::check($request->current_password, $user->password)) {
-            return back()->with('error', 'Password saat ini salah!');
-        }
-
-        // Update password baru
-        DB::table('users')->where('id', session('user_id'))->update([
-            'password' => Hash::make($request->new_password),
+        $user = User::create([
+            'name' => $validated['name'],
+            'username' => $validated['username'],
+            'email' => $validated['email'],
+            'phone' => $validated['phone'] ?? null,
+            'password' => Hash::make($validated['password']),
+            'role' => 'user',
+            'is_active' => true,
+            'last_login_at' => now(),
         ]);
 
-        return back()->with('success', 'Password berhasil diubah!');
+        Auth::login($user);
+        $request->session()->regenerate();
+
+        return redirect()->route('dashboard')
+            ->with('success', 'Registrasi berhasil! Selamat datang di KursusKu.');
     }
 
-    // 6. Logout
-    public function logout()
+    public function logout(Request $request)
     {
-        session()->flush(); // Hapus semua session
-        return redirect()->route('login')->with('success', 'Anda berhasil logout.');
+        Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return redirect()->route('login')
+            ->with('success', 'Anda telah berhasil logout.');
     }
 
-    // 7. Tampilkan Halaman Lupa Password
     public function showForgotPassword()
     {
         return view('auth.forgot-password');
     }
 
-    // 8. Proses Lupa Password (Simulasi)
-    public function processForgotPassword(Request $request)
+    public function sendResetLink(Request $request)
     {
-        $request->validate(['email' => 'required|email']);
+        $request->validate([
+            'email' => ['required', 'email'],
+        ], [
+            'email.required' => 'Email wajib diisi.',
+            'email.email' => 'Format email tidak valid.',
+        ]);
 
-        $user = DB::table('users')->where('email', $request->email)->first();
+        $status = Password::sendResetLink($request->only('email'));
 
-        if ($user) {
-            // Di dunia nyata, di sini kita kirim email. 
-            // Untuk UAS, kita tampilkan token saja sebagai bukti fitur berjalan.
-            $token = bin2hex(random_bytes(16));
-            
-            DB::table('users')->where('id', $user->id)->update([
-                'remember_token' => $token,
-            ]);
-
-            return back()->with('success', 'Link reset password telah dikirim ke email Anda. (Token simulasi: ' . $token . ')');
+        if ($status === Password::RESET_LINK_SENT) {
+            return back()->with('status', __($status));
         }
 
-        return back()->with('error', 'Email tidak terdaftar dalam sistem kami.');
+        return back()
+            ->withErrors(['email' => __($status)])
+            ->withInput($request->only('email'));
+    }
+
+    public function showResetPassword(Request $request, string $token)
+    {
+        return view('auth.reset-password', [
+            'token' => $token,
+            'email' => $request->query('email'),
+        ]);
+    }
+
+    public function resetPassword(Request $request)
+    {
+        $request->validate([
+            'token' => ['required'],
+            'email' => ['required', 'email'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
+        ], [
+            'email.required' => 'Email wajib diisi.',
+            'password.required' => 'Password baru wajib diisi.',
+            'password.min' => 'Password baru minimal 8 karakter.',
+            'password.confirmed' => 'Konfirmasi password baru tidak cocok.',
+        ]);
+
+        $status = Password::reset(
+            $request->only('email', 'password', 'password_confirmation', 'token'),
+            function (User $user, string $password) {
+                $user->forceFill([
+                    'password' => Hash::make($password),
+                    'remember_token' => Str::random(60),
+                ])->save();
+
+                event(new PasswordReset($user));
+            }
+        );
+
+        if ($status === Password::PASSWORD_RESET) {
+            return redirect()->route('login')
+                ->with('success', 'Password berhasil direset. Silakan login dengan password baru Anda.');
+        }
+
+        return back()
+            ->withErrors(['email' => [__($status)]])
+            ->withInput($request->only('email'));
     }
 }

@@ -21,9 +21,13 @@
                 <a href="{{ route('courses.index') }}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-1">
                     <span>&larr;</span> Kembali
                 </a>
-                <a href="{{ route('courses.edit', $course) }}" class="btn btn-primary d-inline-flex align-items-center gap-1 shadow-sm">
-                    <span>&#9998;</span> Edit Kursus
-                </a>
+                @auth
+                    @if (auth()->user()->isAdmin())
+                        <a href="{{ route('courses.edit', $course) }}" class="btn btn-purple d-inline-flex align-items-center gap-1 shadow-sm">
+                            <span>&#9998;</span> Edit Kursus
+                        </a>
+                    @endif
+                @endauth
             </div>
         </div>
 
@@ -119,26 +123,56 @@
                     <!-- Card Footer: Aksi -->
                     <div class="card-footer bg-light border-top p-4 d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-3">
                         <div>
-                            <form 
-                                action="{{ route('courses.destroy', $course) }}" 
-                                method="POST" 
-                                onsubmit="return confirm('Apakah Anda yakin ingin menghapus kursus \'{{ $course->name }}\' ({{ $course->code }})? Tindakan ini tidak dapat dibatalkan.');"
-                                class="d-inline"
-                            >
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit" class="btn btn-outline-danger btn-sm">
-                                    &#128465; Hapus Kursus
-                                </button>
-                            </form>
+                            @auth
+                                @if (auth()->user()->isAdmin())
+                                    <form
+                                        action="{{ route('courses.destroy', $course) }}"
+                                        method="POST"
+                                        onsubmit="return confirm('Apakah Anda yakin ingin menghapus kursus \'{{ $course->name }}\' ({{ $course->code }})? Tindakan ini tidak dapat dibatalkan.');"
+                                        class="d-inline"
+                                    >
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-outline-danger btn-sm">
+                                            &#128465; Hapus Kursus
+                                        </button>
+                                    </form>
+                                @endif
+                            @endauth
                         </div>
-                        <div class="d-flex gap-2">
+                        <div class="d-flex flex-wrap gap-2 align-items-center">
                             <a href="{{ route('courses.index') }}" class="btn btn-outline-secondary">
                                 &larr; Kembali ke Daftar
                             </a>
-                            <a href="{{ route('courses.edit', $course) }}" class="btn btn-primary shadow-sm">
-                                &#9998; Edit Kursus
-                            </a>
+                            @guest
+                                @if ($course->status === 'open')
+                                    <a href="{{ route('login') }}" class="btn btn-purple shadow-sm">
+                                        Login untuk Daftar Kursus
+                                    </a>
+                                @endif
+                            @endguest
+                            @auth
+                                @if (auth()->user()->isAdmin())
+                                    <a href="{{ route('courses.edit', $course) }}" class="btn btn-purple shadow-sm">
+                                        &#9998; Edit Kursus
+                                    </a>
+                                @elseif ($isEnrolled)
+                                    <span class="badge bg-success-subtle text-success border border-success px-3 py-2">
+                                        &#10003; Anda Sudah Terdaftar
+                                    </span>
+                                @elseif ($course->status === 'open' && $course->available_quota > 0)
+                                    <form method="POST" action="{{ route('courses.enroll', $course) }}" class="d-inline">
+                                        @csrf
+                                        <button type="submit" class="btn btn-purple shadow-sm">
+                                            Daftar Kursus Ini
+                                        </button>
+                                    </form>
+                                @else
+                                    <span class="badge bg-secondary-subtle text-secondary border px-3 py-2">
+                                        Pendaftaran Tidak Tersedia
+                                    </span>
+                                @endif
+                            @endauth
                         </div>
                     </div>
                 </div>
